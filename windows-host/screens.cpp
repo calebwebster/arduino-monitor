@@ -9,18 +9,24 @@ GPU 00° 00% FPS 0000
 CPU 00° 00% FAN 00%
 CORE 0000   MEM 0000
 */
-bool createScreen1(char *screen, int screenTextLength, json_value *jsonData) {
+bool createScreen1(char *screen, int screenLength, json_value *jsonData, char *error,
+                   int errorLength) {
     char defaultScreen[] = "SCNGPU --%c --%% FPS ----CPU --%c --%% FAN ---%%RAM -----MB/-----MB ";
-    snprintf(screen, screenTextLength, defaultScreen, DEGREE_SYMBOL, DEGREE_SYMBOL);
+    snprintf(screen, screenLength, defaultScreen, DEGREE_SYMBOL, DEGREE_SYMBOL);
     if (!jsonValueHasType(jsonData, json_object)) {
+        strncpy(error, "Error: Failed to parse JSON", errorLength);
         return false;
     }
     json_value *afterburner = getValueOfKeyIfHasType(jsonData, "afterburner", json_object);
     json_value *hwinfo = getValueOfKeyIfHasType(jsonData, "hwinfo", json_object);
-    if (afterburner == NULL)
+    if (afterburner == NULL) {
+        strncpy(error, "Error: Afterburner is not running", errorLength);
         return false;
-    if (hwinfo == NULL)
+    }
+    if (hwinfo == NULL) {
+        strncpy(error, "Error: HWInfo is not running", errorLength);
         return false;
+    }
 
     double gpuTemp = getAfterburnerSensorValue(afterburner, "GPU temperature");
     double gpuUsage = getAfterburnerSensorValue(afterburner, "GPU usage");
@@ -43,8 +49,8 @@ bool createScreen1(char *screen, int screenTextLength, json_value *jsonData) {
 
     char screenFormatting[] =
         "SCNGPU %2.0f%c %2.0f%% FPS %-4.0fCPU %2.0f%c %2.0f%% FAN %3.0f%%RAM %5.0fMB/%5.0fMB ";
-    snprintf(screen, screenTextLength, screenFormatting, gpuTemp, DEGREE_SYMBOL, gpuUsage,
-             framerate, cpuTemp, DEGREE_SYMBOL, cpuUsage, fanSpeed, memoryUsed, totalMemory);
+    snprintf(screen, screenLength, screenFormatting, gpuTemp, DEGREE_SYMBOL, gpuUsage, framerate,
+             cpuTemp, DEGREE_SYMBOL, cpuUsage, fanSpeed, memoryUsed, totalMemory);
     return true;
 }
 
@@ -53,7 +59,8 @@ CORE 0000   MEM 0000
 PUMP 0000   CPU 0000
 UP 00000K  DN 00000K
 */
-bool createScreen2(char *screen, int screenTextLength, json_value *jsonData) {
+bool createScreen2(char *screen, int screenTextLength, json_value *jsonData, char *error,
+                   int errorLength) {
     char defaultScreen[] = "SCNCORE ----   MEM ----PUMP ----   CPU ----UP -----K  DN -----K";
     snprintf(screen, screenTextLength, defaultScreen);
     json_value *afterburner = getValueOfKeyIfHasType(jsonData, "afterburner", json_object);

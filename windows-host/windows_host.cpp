@@ -12,7 +12,7 @@
 
 char jsonDataBuffer[135000];
 int whichScreen = 1;
-int timesSentScreen = 0;
+int screenCounter = 0;
 
 struct HTTPResponse {
     char *buffer;
@@ -73,20 +73,12 @@ void printArduinoOutput() {
 
 void changeScreen() { ++whichScreen %= 2; }
 
-void formatCurrentTimeString(char *timeString, int timeStringLength) {
-    time_t t = time(NULL);
-    struct tm *localTime = localtime(&t);
-    if (localTime == NULL)
-        strncpy(timeString, "00:00", timeStringLength);
-    strftime(timeString, timeStringLength, "%H:%M", localTime);
-}
-
 void updateArduino() {
     if (!Serial.connected())
         return;
     printArduinoOutput();
-    if (timesSentScreen == 4) {
-        timesSentScreen = 0;
+    if (screenCounter == 4) {
+        screenCounter = 0;
         changeScreen();
         bool success = Serial.print(BLANK_SCREEN);
         if (!success) {
@@ -125,19 +117,45 @@ void updateArduino() {
     }
 
     char screen[SCREEN_TEXT_LENGTH + 1];
-    char scrollText[SCROLL_TEXT_LENGTH + 1];
-    char timeString[5 + 1];
-    formatCurrentTimeString(timeString, sizeof(timeString));
+    char errorMessage[33 + 1];
+    strncpy(errorMessage, "Happy gaming!", sizeof(errorMessage));
+
     switch (whichScreen) {
     case 0:
-        success = createScreen1(screen, sizeof(screen), jsonObject);
+        success =
+            createScreen1(screen, sizeof(screen), jsonObject, errorMessage, sizeof(errorMessage));
         break;
     case 1:
-        success = createScreen2(screen, sizeof(screen), jsonObject);
+        success =
+            createScreen2(screen, sizeof(screen), jsonObject, errorMessage, sizeof(errorMessage));
         break;
     default:
         break;
     }
+
+    char scrollText[SCROLL_TEXT_LENGTH + 1];
+    char timeString[5 + 1];
+    time_t t = time(NULL);
+    struct tm *time = localtime(&t);
+    if (time == NULL) {
+        time->tm_hour = 0;
+        time->tm_min = 0;
+    }
+    char greeting[15 + 1];
+    if (time->tm_hour < 12)
+        strncpy(greeting, "morning", sizeof(greeting));
+    else if (time->tm_hour < 18)
+        strncpy(greeting, "afternoon", sizeof(greeting));
+    else
+        strncpy(greeting, "evening", sizeof(greeting));
+    snprintf(scrollText, sizeof(scrollText), "SCLGood %s! It is %02d:%02d  |  %s", greeting,
+             time->tm_hour, time->tm_min, errorMessage);
+
+    if (strlen(scrollText) < SCROLL_TEXT_LENGTH)
+        strncat(scrollText, "\n", 1);
+
+    while (strlen(scrollText) < SCROLL_TEXT_LENGTH)
+        strncat(scrollText, " ", 1);
 
     json_value_free(jsonObject);
     printf("%s\n", screen);
@@ -145,9 +163,15 @@ void updateArduino() {
         Serial.end();
         return;
     }
-    timesSentScreen++;
+    screenCounter++;
     clock_t t2 = clock();
     printf("Completed in %fs\n", ((double)(t2 - t1) / CLOCKS_PER_SEC));
+    Sleep(500);
+    if (Serial.print(scrollText) == false) {
+        Serial.end();
+        return;
+    }
+    Sleep(500);
 }
 
 int main(int argc, char **argv) {
@@ -162,7 +186,6 @@ int main(int argc, char **argv) {
     Serial.begin(9600, 5);
     while (!kbhit()) {
         updateArduino();
-        Sleep(1000);
     }
     Serial.end();
     curl_global_cleanup();
